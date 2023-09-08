@@ -4,11 +4,23 @@
  */
 package com.team6647.subsystems;
 
+import java.util.List;
+
 import com.andromedalib.andromedaSwerve.systems.AndromedaSwerve;
 import com.andromedalib.andromedaSwerve.utils.SwerveConstants;
+import com.andromedalib.sensors.SuperNavx;
 import com.andromedalib.vision.LimelightHelpers;
+import com.pathplanner.lib.PathConstraints;
+import com.pathplanner.lib.PathPlanner;
 import com.pathplanner.lib.PathPlannerTrajectory;
+import com.pathplanner.lib.auto.PIDConstants;
+import com.pathplanner.lib.auto.SwerveAutoBuilder;
 import com.pathplanner.lib.commands.PPSwerveControllerCommand;
+import com.team6647.commands.hybrid.Intake.IntakePieceSequence;
+import com.team6647.commands.hybrid.Intake.ToggleIntake;
+import com.team6647.subsystems.IndexerSubsystem.IndexerState;
+import com.team6647.subsystems.IntakeSubsystem.RollerState;
+import com.team6647.util.Constants.DriveConstants;
 
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
@@ -35,6 +47,8 @@ public class AutoDriveSubsystem extends SubsystemBase {
 
   Alliance alliance;
 
+  SuperNavx navx = SuperNavx.getInstance();
+
   /** Creates a new AutoDriveSubsystem. */
   private AutoDriveSubsystem(AndromedaSwerve swerve) {
     this.swerve = swerve;
@@ -45,6 +59,15 @@ public class AutoDriveSubsystem extends SubsystemBase {
         swerve.getPositions(), new Pose2d());
 
     resetOdometry(new Pose2d());
+
+    DriveConstants.eventMap.put("toggleIntake", new ToggleIntake(PivotCubeSubsystem.getInstance()));
+    DriveConstants.eventMap.put("moveIntake",
+        new IntakePieceSequence(IntakeSubsystem.getInstance(), IndexerSubsystem.getInstance(),
+            RollerState.COLLECTING, IndexerState.INDEXING));
+    DriveConstants.eventMap.put("toggleIntake", new ToggleIntake(PivotCubeSubsystem.getInstance()));
+    DriveConstants.eventMap.put("throwIntake",
+        new IntakePieceSequence(IntakeSubsystem.getInstance(), IndexerSubsystem.getInstance(),
+            RollerState.SPITTING, IndexerState.SPITTING).withTimeout(1.5));
 
     this.alliance = DriverStation.getAlliance();
 
@@ -67,23 +90,37 @@ public class AutoDriveSubsystem extends SubsystemBase {
   }
 
   /**
+   * Gets current Navx Roll
+   * 
+   * @return Navx Roll
+   */
+  public double getNavxRoll() {
+    return navx.getRoll();
+  }
+
+  /**
    * Computes Limelight MegaBotBose data and adds it into the
    * {@link SwerveDrivePoseEstimator}
    */
   public void computeVisionMeasurements() {
+
     LimelightHelpers.Results result = LimelightHelpers.getLatestResults("limelight").targetingResults;
 
-    if (!(result.botpose[0] == 0 && result.botpose[1] == 0) && LimelightHelpers.getTA("limelight") < 30) {
+    if (!(result.botpose[0] == 0 && result.botpose[1] == 0) &&
+        LimelightHelpers.getTA("limelight") < 30) {
       if (alliance == Alliance.Blue) {
         poseEstimator.addVisionMeasurement(
             LimelightHelpers.toPose2D(result.botpose_wpiblue),
-            Timer.getFPGATimestamp() - (result.latency_capture / 1000.0) - (result.latency_pipeline / 1000.0));
+            Timer.getFPGATimestamp() - (result.latency_capture / 1000.0) -
+                (result.latency_pipeline / 1000.0));
       } else if (alliance == Alliance.Red) {
         poseEstimator.addVisionMeasurement(
             LimelightHelpers.toPose2D(result.botpose_wpired),
-            Timer.getFPGATimestamp() - (result.latency_capture / 1000.0) - (result.latency_pipeline / 1000.0));
+            Timer.getFPGATimestamp() - (result.latency_capture / 1000.0) -
+                (result.latency_pipeline / 1000.0));
       }
     }
+
   }
 
   /**
@@ -130,5 +167,25 @@ public class AutoDriveSubsystem extends SubsystemBase {
             true,
             swerve));
 
+  }
+
+  public Command createFullAuto(String pathName) {
+
+    List<PathPlannerTrajectory> pathGroup = PathPlanner.loadPathGroup(pathName, new PathConstraints(5, 5));
+
+    SwerveAutoBuilder autoBuilder = new SwerveAutoBuilder(
+        this::getPose,
+        this::resetOdometry,
+        SwerveConstants.swerveKinematics,
+        new PIDConstants(1, 0.0, 0.0),
+        new PIDConstants(2, 0.0, 0.0),
+        swerve::setModuleStates,
+        DriveConstants.eventMap,
+        true,
+        swerve);
+
+    Command fullAuto = autoBuilder.fullAuto(pathGroup);
+
+    return fullAuto;
   }
 }

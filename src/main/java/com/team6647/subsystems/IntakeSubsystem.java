@@ -13,7 +13,7 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 public class IntakeSubsystem extends SubsystemBase {
   private static IntakeSubsystem instance;
 
-  private SuperSparkMax intakeMotor = new SuperSparkMax(IntakeConstants.intakeMotorID, GlobalIdleMode.Coast, false, 80);
+  private SuperSparkMax intakeMotor = new SuperSparkMax(IntakeConstants.intakeMotorID, GlobalIdleMode.Coast, true, 80);
 
   private RollerState mState = RollerState.STOPPED;
 
@@ -58,7 +58,7 @@ public class IntakeSubsystem extends SubsystemBase {
   }
 
   /* Telemetry */
-  public RollerState getRollerState(){
+  public RollerState getRollerState() {
     return mState;
   }
 }

@@ -1,7 +1,6 @@
-// Copyright (c) FIRST and other WPILib contributors.
-// Open Source Software; you can modify and/or share it under the terms of
-// the WPILib BSD license file in the root directory of this project.
-
+/**
+ * Written by Juan Pablo Gutiérrez
+ */
 package com.team6647;
 
 import com.andromedalib.andromedaSwerve.andromedaModule.FalconAndromedaModule;
@@ -9,10 +8,13 @@ import com.andromedalib.andromedaSwerve.commands.SwerveDriveCommand;
 import com.andromedalib.andromedaSwerve.systems.AndromedaSwerve;
 import com.andromedalib.andromedaSwerve.utils.AndromedaMap;
 import com.andromedalib.robot.SuperRobotContainer;
-import com.team6647.commands.hybrid.Intake.MoveIntake;
+import com.team6647.commands.hybrid.Intake.IntakePieceSequence;
 import com.team6647.commands.hybrid.Intake.ToggleIntake;
+import com.team6647.subsystems.AutoDriveSubsystem;
+import com.team6647.subsystems.IndexerSubsystem;
 import com.team6647.subsystems.IntakeSubsystem;
 import com.team6647.subsystems.PivotCubeSubsystem;
+import com.team6647.subsystems.IndexerSubsystem.IndexerState;
 import com.team6647.subsystems.IntakeSubsystem.RollerState;
 import com.team6647.util.Constants.OperatorConstants;
 
@@ -23,9 +25,11 @@ public class RobotContainer extends SuperRobotContainer {
 
   /* Systems */
   private AndromedaSwerve andromedaSwerve;
-
+  private AutoDriveSubsystem autoDriveSubsystem;
   private PivotCubeSubsystem cubeintakeSubsystem;
   private IntakeSubsystem intakeSubsystem;
+  private IndexerSubsystem indexerSubsystem;
+  // private ElevatorSubsystem elevatorSubsystem;
 
   private RobotContainer() {
   }
@@ -45,11 +49,12 @@ public class RobotContainer extends SuperRobotContainer {
         new FalconAndromedaModule(1, "Back Right Module", AndromedaMap.mod2Const),
         new FalconAndromedaModule(2, "Back Left Module", AndromedaMap.mod3Const),
         new FalconAndromedaModule(3, "Front Lert Module", AndromedaMap.mod4Const), });
-    /*
-     * autoDriveSubsystem = AutoDriveSubsystem.getInstance(andromedaSwerve);
-     */
-    cubeintakeSubsystem = PivotCubeSubsystem.getInstance();
+
+    autoDriveSubsystem = AutoDriveSubsystem.getInstance(andromedaSwerve);
     intakeSubsystem = IntakeSubsystem.getInstance();
+    cubeintakeSubsystem = PivotCubeSubsystem.getInstance();
+    indexerSubsystem = IndexerSubsystem.getInstance();
+    // elevatorSubsystem = ElevatorSubsystem.getInstance();
   }
 
   @Override
@@ -62,19 +67,30 @@ public class RobotContainer extends SuperRobotContainer {
             () -> -OperatorConstants.driverController1.getRightX(),
             () -> OperatorConstants.driverController1.leftStick().getAsBoolean()));
 
-    OperatorConstants.driverController2.leftTrigger().whileTrue(new MoveIntake(intakeSubsystem, RollerState.COLLECTING));
-    OperatorConstants.driverController2.rightTrigger().whileTrue(new MoveIntake(intakeSubsystem, RollerState.SPITTING));
+    OperatorConstants.driverController1.leftTrigger()
+        .whileTrue(
+            new IntakePieceSequence(intakeSubsystem, indexerSubsystem, RollerState.COLLECTING, IndexerState.INDEXING));
 
-    OperatorConstants.driverController2.x().onTrue(new ToggleIntake(cubeintakeSubsystem));
+    OperatorConstants.driverController1.rightTrigger()
+        .whileTrue(
+            new IntakePieceSequence(intakeSubsystem, indexerSubsystem, RollerState.SPITTING, IndexerState.SPITTING));
+
+    OperatorConstants.driverController1.x().whileTrue(new ToggleIntake(cubeintakeSubsystem));
+
+    // OperatorConstants.driverController2.a().whileTrue(new InstantCommand(() ->
+    // elevatorSubsystem.changeElevatorState(ElevatorState.MAX)));
+    // OperatorConstants.driverController2.b().whileTrue(new RunCommand(() ->
+    // elevatorSubsystem.moveElevator(-0.3)));
+
   }
 
   public Command getAutonomousCommand() {
-    return null;
-    /*
-     * PathPlannerTrajectory examplePath = PathPlanner.loadPath("Straigth", new
-     * PathConstraints(1, 1));
-     * return autoDriveSubsystem.followTrajectoryCommand(examplePath, true);
-     */
+    // return null;
+    return autoDriveSubsystem.createFullAuto("Top");
+
+    //PathPlannerTrajectory examplePath = PathPlanner.loadPath("Top", new PathConstraints(2, 2));
+    //return autoDriveSubsystem.followTrajectoryCommand(examplePath, true);
+
   }
 
 }
